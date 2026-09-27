@@ -3312,37 +3312,52 @@ compare_by_size (NautilusFile *file_1,
     }
 }
 
+typedef enum
+{
+    NAME_SORT_FIRST,
+    NAME_SORT_NORMAL,
+    NAME_SORT_LAST
+} NameSortGroup;
+
+static NameSortGroup
+name_sort_group (const char *name)
+{
+    if (g_str_has_prefix (name, "·"))
+    {
+        return NAME_SORT_FIRST;
+    }
+
+    if (name[0] == SORT_LAST_CHAR1 || name[0] == SORT_LAST_CHAR2)
+    {
+        return NAME_SORT_LAST;
+    }
+
+    return NAME_SORT_NORMAL;
+}
+
 static int
 compare_by_display_name (NautilusFile *file_1,
                          NautilusFile *file_2)
 {
     const char *name_1, *name_2;
     const char *key_1, *key_2;
-    gboolean sort_last_1, sort_last_2;
-    int compare;
+    NameSortGroup group_1, group_2;
 
     name_1 = nautilus_file_peek_display_name (file_1);
     name_2 = nautilus_file_peek_display_name (file_2);
 
-    sort_last_1 = name_1[0] == SORT_LAST_CHAR1 || name_1[0] == SORT_LAST_CHAR2;
-    sort_last_2 = name_2[0] == SORT_LAST_CHAR1 || name_2[0] == SORT_LAST_CHAR2;
+    group_1 = name_sort_group (name_1);
+    group_2 = name_sort_group (name_2);
 
-    if (sort_last_1 && !sort_last_2)
+    if (group_1 != group_2)
     {
-        compare = +1;
-    }
-    else if (!sort_last_1 && sort_last_2)
-    {
-        compare = -1;
-    }
-    else
-    {
-        key_1 = nautilus_file_peek_display_name_collation_key (file_1);
-        key_2 = nautilus_file_peek_display_name_collation_key (file_2);
-        compare = strcmp (key_1, key_2);
+        return group_1 < group_2 ? -1 : 1;
     }
 
-    return compare;
+    key_1 = nautilus_file_peek_display_name_collation_key (file_1);
+    key_2 = nautilus_file_peek_display_name_collation_key (file_2);
+
+    return strcmp (key_1, key_2);
 }
 
 static inline int

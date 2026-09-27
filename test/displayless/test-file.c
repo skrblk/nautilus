@@ -90,6 +90,138 @@ test_file_sort_with_self (void)
     g_assert_cmpint (order, ==, 0);
 }
 
+static void
+test_file_sort_last_prefixes (void)
+{
+    const char *names[] = { ".hidden", "#last" };
+    g_autoptr (NautilusFile) first = nautilus_file_get_by_uri ("file:///sort-test/first");
+    g_autoptr (NautilusFile) second = nautilus_file_get_by_uri ("file:///sort-test/second");
+
+    nautilus_file_set_display_name (first, "A", NULL, TRUE);
+
+    for (guint i = 0; i < G_N_ELEMENTS (names); i++)
+    {
+        nautilus_file_set_display_name (second, names[i], NULL, TRUE);
+
+        g_assert_cmpint (nautilus_file_compare_for_sort (first, second,
+                                                         NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                         FALSE, FALSE), <, 0);
+        g_assert_cmpint (nautilus_file_compare_for_sort (second, first,
+                                                         NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                         FALSE, FALSE), >, 0);
+        g_assert_cmpint (nautilus_file_compare_for_sort (first, second,
+                                                         NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                         FALSE, TRUE), >, 0);
+    }
+}
+
+static void
+test_file_sort_middle_dot (void)
+{
+    const char *names[] = { "0", "A", "_A", ".hidden", "#last", "•A", "·A", "A·Z", " ·Z" };
+    g_autoptr (NautilusFile) first = nautilus_file_get_by_uri ("file:///sort-test/first");
+    g_autoptr (NautilusFile) second = nautilus_file_get_by_uri ("file:///sort-test/second");
+
+    nautilus_file_set_display_name (first, "·Z", NULL, TRUE);
+
+    for (guint i = 0; i < G_N_ELEMENTS (names); i++)
+    {
+        nautilus_file_set_display_name (second, names[i], NULL, TRUE);
+        g_test_message ("Comparing ·Z with %s", names[i]);
+
+        g_assert_cmpint (nautilus_file_compare_for_sort (first, second,
+                                                         NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                         FALSE, FALSE), <, 0);
+        g_assert_cmpint (nautilus_file_compare_for_sort (second, first,
+                                                         NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                         FALSE, FALSE), >, 0);
+        g_assert_cmpint (nautilus_file_compare_for_sort (first, second,
+                                                         NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                         FALSE, TRUE), >, 0);
+    }
+}
+
+static void
+test_file_sort_middle_dot_collation (void)
+{
+    const char *pairs[][2] =
+    {
+        { "·", "·A" },
+        { "·2", "·10" },
+        { "·A", "·Z" },
+        { "_Z", "A" },
+        { "•Z", "A" },
+        { "·Z", "A" },
+        { "A·Z", "B" },
+        { " ·Z", "A" },
+        { ".hidden", "#last" },
+    };
+    g_autoptr (NautilusFile) first = nautilus_file_get_by_uri ("file:///sort-test/first");
+    g_autoptr (NautilusFile) second = nautilus_file_get_by_uri ("file:///sort-test/second");
+
+    for (guint i = 0; i < G_N_ELEMENTS (pairs); i++)
+    {
+        g_autofree char *key_1 = g_utf8_collate_key_for_filename (pairs[i][0], -1);
+        g_autofree char *key_2 = g_utf8_collate_key_for_filename (pairs[i][1], -1);
+        int expected = strcmp (key_1, key_2);
+        int result;
+
+        nautilus_file_set_display_name (first, pairs[i][0], NULL, TRUE);
+        nautilus_file_set_display_name (second, pairs[i][1], NULL, TRUE);
+        result = nautilus_file_compare_for_sort (first, second,
+                                                 NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                 FALSE, FALSE);
+
+        g_test_message ("Preserving collation of %s and %s", pairs[i][0], pairs[i][1]);
+        g_assert_cmpint ((result > 0) - (result < 0), ==,
+                         (expected > 0) - (expected < 0));
+    }
+}
+
+static void
+test_file_sort_middle_dot_precedence (void)
+{
+    g_autoptr (NautilusFile) first = nautilus_file_get_by_uri ("file:///sort-test/first");
+    g_autoptr (NautilusFile) second = nautilus_file_get_by_uri ("file:///sort-test/second");
+
+    nautilus_file_set_display_name (first, "A", NULL, TRUE);
+    nautilus_file_set_display_name (second, "·Z", NULL, TRUE);
+    first->details->type = G_FILE_TYPE_DIRECTORY;
+    second->details->type = G_FILE_TYPE_REGULAR;
+
+    for (guint reversed = 0; reversed < 2; reversed++)
+    {
+        g_assert_cmpint (nautilus_file_compare_for_sort (first, second,
+                                                         NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                         TRUE, reversed), <, 0);
+
+        first->details->sort_order = -1;
+        g_assert_cmpint (nautilus_file_compare_for_sort (first, second,
+                                                         NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                         FALSE, reversed), ==, reversed ? 1 : -1);
+        first->details->sort_order = 0;
+    }
+}
+
+static void
+test_file_sort_middle_dot_ties (void)
+{
+    g_autoptr (NautilusFile) first = nautilus_file_get_by_uri ("file:///sort-test/first");
+    g_autoptr (NautilusFile) second = nautilus_file_get_by_uri ("file:///sort-test/second");
+
+    nautilus_file_set_display_name (first, "·same", NULL, TRUE);
+    nautilus_file_set_display_name (second, "·same", NULL, TRUE);
+    g_assert_cmpint (nautilus_file_compare_for_sort (first, second,
+                                                     NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                                     FALSE, FALSE), <, 0);
+
+    nautilus_file_set_display_name (first, "A", NULL, TRUE);
+    nautilus_file_set_display_name (second, "·Z", NULL, TRUE);
+    g_assert_cmpint (nautilus_file_compare_for_sort (first, second,
+                                                     NAUTILUS_FILE_SORT_BY_SIZE,
+                                                     FALSE, FALSE), >, 0);
+}
+
 typedef struct
 {
     const gsize len;
@@ -471,6 +603,16 @@ main (int   argc,
                      test_file_sort_order);
     g_test_add_func ("/file-sort/with-self",
                      test_file_sort_with_self);
+    g_test_add_func ("/file-sort/last-prefixes",
+                     test_file_sort_last_prefixes);
+    g_test_add_func ("/file-sort/middle-dot/priority",
+                     test_file_sort_middle_dot);
+    g_test_add_func ("/file-sort/middle-dot/collation",
+                     test_file_sort_middle_dot_collation);
+    g_test_add_func ("/file-sort/middle-dot/precedence",
+                     test_file_sort_middle_dot_precedence);
+    g_test_add_func ("/file-sort/middle-dot/ties",
+                     test_file_sort_middle_dot_ties);
     g_test_add_func ("/file-batch-rename/cycles",
                      test_file_batch_rename_cycles);
     g_test_add_func ("/file-batch-rename/chains",
