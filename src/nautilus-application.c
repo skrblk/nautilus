@@ -412,7 +412,7 @@ nautilus_application_open_location (NautilusApplication *self,
         sel_list = g_list_prepend (sel_list, nautilus_file_get (selection));
     }
 
-    nautilus_application_open_location_full (self, location, NAUTILUS_OPEN_FLAG_REUSE_EXISTING,
+    nautilus_application_open_location_full (self, location, NAUTILUS_OPEN_FLAG_NEW_WINDOW,
                                              sel_list, startup_id);
 }
 
@@ -430,21 +430,17 @@ nautilus_application_open (GApplication  *app,
 {
     NautilusApplication *self = NAUTILUS_APPLICATION (app);
 
-    /* Either open new window or re-open existing location to update selection */
-    NautilusOpenFlags flags = g_strcmp0 (hint, "new-window") == 0
-                              ? NAUTILUS_OPEN_FLAG_NEW_WINDOW
-                              : NAUTILUS_OPEN_FLAG_REUSE_EXISTING;
-
     g_debug ("Open called on the GApplication instance; %d files", n_files);
 
-    /* Open windows at each requested location. */
+    /* External open requests get a new window at each requested location. */
     for (int idx = 0; idx < n_files; idx++)
     {
         GFile *file = files[idx];
 
         g_return_if_fail (file != NULL);
 
-        nautilus_application_open_location_full (self, file, flags, NULL, NULL);
+        nautilus_application_open_location_full (self, file, NAUTILUS_OPEN_FLAG_NEW_WINDOW,
+                                                 NULL, NULL);
     }
 }
 
