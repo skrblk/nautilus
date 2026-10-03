@@ -9,7 +9,6 @@
 #include "nautilus-properties.h"
 
 #include <adwaita.h>
-#include <gdk/gdkkeysyms.h>
 #include <gio/gunixmounts.h>
 #include <glib/gi18n.h>
 #include <glycin.h>
@@ -24,16 +23,10 @@
 #include "nautilus-error-reporting.h"
 #include "nautilus-file-operations.h"
 #include "nautilus-file-utilities.h"
-#include "nautilus-global-preferences.h"
-#include "nautilus-icon-info.h"
 #include "nautilus-image.h"
 #include "nautilus-metadata.h"
-#include "nautilus-mime-actions.h"
 #include "nautilus-module.h"
-#include "nautilus-properties-model.h"
-#include "nautilus-properties-item.h"
 #include "nautilus-scheme.h"
-#include "nautilus-signaller.h"
 #include "nautilus-tag-manager.h"
 #include "nautilus-ui-utilities.h"
 
@@ -643,12 +636,6 @@ set_icon (NautilusPropertiesWidget *self,
 {
     g_autoptr (GlyLoader) loader = gly_loader_new (location);
 
-    /* Get tested image location */
-    g_autoptr (GFile) icon_location = NULL;
-
-    g_object_get (loader, "file", &icon_location, NULL);
-    g_return_if_fail (icon_location != NULL);
-
     if (self->icon_cancellable != NULL)
     {
         g_cancellable_cancel (self->icon_cancellable);
@@ -945,6 +932,7 @@ create_extension_group_row (NautilusPropertiesItem   *item,
 
     adw_action_row_set_subtitle_selectable (ADW_ACTION_ROW (row), TRUE);
     gtk_widget_add_css_class (row, "property");
+    adw_preferences_row_set_use_markup (ADW_PREFERENCES_ROW (row), FALSE);
 
     g_object_bind_property (item, "name", row, "title", G_BINDING_SYNC_CREATE);
     g_object_bind_property (item, "value", row, "subtitle", G_BINDING_SYNC_CREATE);

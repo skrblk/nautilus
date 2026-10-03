@@ -17,18 +17,14 @@
 #include "nautilus-application.h"
 
 #include <adwaita.h>
-#include <fcntl.h>
 #include <gdk/gdk.h>
 #include <gio/gio.h>
 #include <gio/gunixmounts.h>
 #include <glib/gi18n.h>
-#include <glib/gstdio.h>
 #include <gtk/gtk.h>
 #include <gxdp.h>
 #include <libportal/portal.h>
 #include <nautilus-extension.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
 #include "nautilus-bookmark-list.h"
 #include "nautilus-clipboard.h"
@@ -37,10 +33,8 @@
 #include "nautilus-dbus-manager.h"
 #include "nautilus-directory-private.h"
 #include "nautilus-file.h"
-#include "nautilus-file-operations.h"
 #include "nautilus-file-undo-manager.h"
 #include "nautilus-file-utilities.h"
-#include "nautilus-files-view.h"
 #include "nautilus-freedesktop-dbus.h"
 #include "nautilus-global-preferences.h"
 #include "nautilus-icon-info.h"
@@ -277,22 +271,6 @@ static NautilusWindow *
 get_window_with_location (NautilusApplication *self,
                           GFile               *location)
 {
-    g_autoptr (NautilusFile) file = nautilus_file_get_existing (location);
-    g_autoptr (GFile) searched_location = NULL;
-
-    if (file != NULL &&
-        !nautilus_file_is_directory (file) &&
-        g_file_has_parent (location, NULL))
-    {
-        searched_location = g_file_get_parent (location);
-    }
-    else
-    {
-        searched_location = g_object_ref (location);
-    }
-
-    g_return_val_if_fail (searched_location != NULL, NULL);
-
     /* Check active window as a first priority */
     NautilusWindow *active_window = NAUTILUS_WINDOW (
         gtk_application_get_active_window (GTK_APPLICATION (self)));
@@ -345,9 +323,31 @@ nautilus_application_open_location_full (NautilusApplication *self,
                     (flags & NAUTILUS_OPEN_FLAG_NEW_TAB) == 0);
 
     NautilusWindow *target_window = NULL;
+    g_autoptr (GFile) mapped_location = NULL;
+    g_autolist (NautilusFile) mapped_selection = NULL;
 
     if ((flags & NAUTILUS_OPEN_FLAG_REUSE_EXISTING) != 0)
     {
+        g_autoptr (NautilusFile) file = nautilus_file_get_existing (location);
+
+        /* Translate location to the parent if it is a known regular file.
+         * Also change the selection to the file. */
+        if (file != NULL &&
+            !nautilus_file_is_directory (file) &&
+            g_file_has_parent (location, NULL))
+        {
+            mapped_location = g_file_get_parent (location);
+            location = mapped_location;
+
+            if (selection != NULL)
+            {
+                g_critical ("Attempted to open a regular file with selection");
+            }
+
+            mapped_selection = g_list_prepend (mapped_selection, g_steal_pointer (&file));
+            selection = mapped_selection;
+        }
+
         /* Look for window that alredy shows location */
         target_window = get_window_with_location (self, location);
     }

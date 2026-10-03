@@ -15,15 +15,11 @@
 #include <config.h>
 #include "nautilus-location-entry.h"
 
-#include "nautilus-application.h"
 #include "nautilus-scheme.h"
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
 #include <glib/gi18n.h>
 #include <gio/gio.h>
-#include "nautilus-file-utilities.h"
-#include "nautilus-clipboard.h"
-#include <stdio.h>
 #include <string.h>
 
 typedef enum
@@ -516,6 +512,17 @@ nautilus_location_entry_icon_release (GtkEntry             *gentry,
     }
 }
 
+static void
+schedule_completion (NautilusLocationEntry *self)
+{
+    /* Do the expand at idle time to avoid slowing down typing when the
+     * directory is large. */
+    if (self->completion_id == 0)
+    {
+        self->completion_id = g_idle_add_once (update_completions_store, self);
+    }
+}
+
 static gboolean
 nautilus_location_entry_key_pressed (GtkEventControllerKey *controller,
                                      unsigned int           keyval,
@@ -523,14 +530,9 @@ nautilus_location_entry_key_pressed (GtkEventControllerKey *controller,
                                      GdkModifierType        state,
                                      gpointer               user_data)
 {
-    GtkWidget *widget;
-    GtkEditable *editable;
-    gboolean selected;
-
-
-    widget = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (controller));
-    editable = GTK_EDITABLE (widget);
-    selected = gtk_editable_get_selection_bounds (editable, NULL, NULL);
+    NautilusLocationEntry *self = user_data;
+    GtkEditable *editable = GTK_EDITABLE (self);
+    gboolean selected = gtk_editable_get_selection_bounds (editable, NULL, NULL);
 
     if (!gtk_editable_get_editable (editable))
     {
@@ -549,12 +551,13 @@ nautilus_location_entry_key_pressed (GtkEventControllerKey *controller,
         {
             int position;
 
-            position = strlen (gtk_editable_get_text (GTK_EDITABLE (editable)));
+            position = strlen (gtk_editable_get_text (editable));
             gtk_editable_select_region (editable, position, position);
+            schedule_completion (self);
         }
         else
         {
-            gtk_widget_error_bell (widget);
+            gtk_widget_error_bell (GTK_WIDGET (self));
         }
 
         return GDK_EVENT_STOP;
@@ -564,26 +567,12 @@ nautilus_location_entry_key_pressed (GtkEventControllerKey *controller,
         !(state & (GDK_SHIFT_MASK | GDK_CONTROL_MASK)) && selected)
     {
         set_position_and_selection_to_end (editable);
+        schedule_completion (self);
+
+        return GDK_EVENT_STOP;
     }
 
     return GDK_EVENT_PROPAGATE;
-}
-
-static void
-after_text_change (NautilusLocationEntry *self,
-                   gboolean               insert)
-{
-    /* Only insert a completion if a character was typed. Otherwise,
-     * update the completions store (i.e. in case backspace was pressed)
-     * but don't insert the completion into the entry. */
-    self->idle_insert_completion = insert;
-
-    /* Do the expand at idle time to avoid slowing down typing when the
-     * directory is large. */
-    if (self->completion_id == 0)
-    {
-        self->completion_id = g_idle_add_once (update_completions_store, self);
-    }
 }
 
 static void
@@ -595,7 +584,8 @@ on_after_insert_text (GtkEditable *editable,
 {
     NautilusLocationEntry *self = NAUTILUS_LOCATION_ENTRY (data);
 
-    after_text_change (self, TRUE);
+    self->idle_insert_completion = TRUE;
+    schedule_completion (self);
 }
 
 static void
@@ -606,7 +596,8 @@ on_after_delete_text (GtkEditable *editable,
 {
     NautilusLocationEntry *self = NAUTILUS_LOCATION_ENTRY (data);
 
-    after_text_change (self, FALSE);
+    self->idle_insert_completion = FALSE;
+    schedule_completion (self);
 }
 
 static void
@@ -735,12 +726,12 @@ nautilus_location_entry_init (NautilusLocationEntry *self)
 
     controller = gtk_event_controller_key_new ();
     gtk_widget_add_controller (GTK_WIDGET (self), controller);
-    /* In GTK3, the Tab key binding (for focus change) happens in the bubble
-     * phase, and we want to stop that from happening. After porting to GTK4
-     * we need to check whether this is still correct. */
-    gtk_event_controller_set_propagation_phase (controller, GTK_PHASE_BUBBLE);
+    /* The CAPTURE phase is meant for containers that want to handle keys before
+     * their child widgets, which is exactly the case here, as this widget handles
+     * the Tab key before the underlying GtkEntry. */
+    gtk_event_controller_set_propagation_phase (controller, GTK_PHASE_CAPTURE);
     g_signal_connect (controller, "key-pressed",
-                      G_CALLBACK (nautilus_location_entry_key_pressed), NULL);
+                      G_CALLBACK (nautilus_location_entry_key_pressed), self);
 
     g_signal_connect_after (gtk_editable_get_delegate (GTK_EDITABLE (self)),
                             "insert-text",
