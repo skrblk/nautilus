@@ -1,4 +1,9 @@
 # nautilus
+
+Personal fork of GNOME Files. See [fork changes and maintenance](docs/fork-maintenance.md)
+for the custom behavior, incremental builds, and system package handling.
+The badges below report the upstream GNOME pipelines.
+
 [![Pipeline status](https://gitlab.gnome.org/GNOME/nautilus/badges/main/pipeline.svg)](https://gitlab.gnome.org/GNOME/nautilus/commits/main)
 [![coverage report](https://gitlab.gnome.org/GNOME/nautilus/badges/main/coverage.svg)](https://gitlab.gnome.org/GNOME/nautilus/commits/main) 
 
