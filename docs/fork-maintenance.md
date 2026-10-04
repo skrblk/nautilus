@@ -8,7 +8,7 @@ identifies itself as `52.alpha`, a development version.
 | Behavior | Source | Scope |
 | --- | --- | --- |
 | Leading `·` (U+00B7) sorts first in ascending name order | `src/nautilus-file.c` | Normal collation within each group, folders-first, reverse ordering, and the existing `.`/`#` group remain intact. Underscores and similar-looking characters keep upstream behavior. |
-| Encrypted-volume prompts default to forgetting the passphrase | `src/nautilus-file-operations.c` | Leave `GMountOperation` at its `G_PASSWORD_SAVE_NEVER` default. The user can still choose to remember a passphrase. |
+| Mount password prompts default to forgetting the password | Mount operations in `src/` | Leave `GMountOperation` at its `G_PASSWORD_SAVE_NEVER` default for volume, sidebar, file activation, navigation, and server connection requests. The user can still choose to remember a password. |
 | External open requests create new windows | `src/nautilus-application.c` | Command-line folder opens, application open requests, and FileManager1 folder/reveal requests open separate windows. Explicit internal tab navigation keeps its existing behavior. |
 | Routine dialogs allow browsing while open | Dialog presentation in `src/` | New Folder, Compress, Properties, Preferences, batch rename, Open With, view settings, search filters, selection patterns, and informational messages use separate non-modal windows. New-folder targets are captured when the prompt opens; view-specific settings close when their view changes. Operation decisions and destructive confirmations retain their blocking behavior. |
 

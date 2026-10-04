@@ -6668,7 +6668,6 @@ action_mount_volume (GSimpleAction *action,
 
             nautilus_view_item_set_loading (item, TRUE);
             mount_op = gtk_mount_operation_new (nautilus_files_view_get_containing_window (view));
-            g_mount_operation_set_password_save (mount_op, G_PASSWORD_SAVE_FOR_SESSION);
             nautilus_file_mount (file, mount_op, NULL,
                                  file_mount_callback,
                                  g_object_ref (view));

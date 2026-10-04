@@ -1833,7 +1833,6 @@ activation_mount_not_mounted (ActivateParameters *parameters)
     {
         file = parameters->not_mounted->data;
         mount_op = gtk_mount_operation_new (parameters->parent_window);
-        g_mount_operation_set_password_save (mount_op, G_PASSWORD_SAVE_FOR_SESSION);
         g_signal_connect (mount_op, "notify::is-showing",
                           G_CALLBACK (activate_mount_op_active), parameters);
         location = nautilus_file_get_location (file);
@@ -2117,7 +2116,6 @@ activation_mount_mountables (ActivateParameters *parameters)
     {
         file = parameters->mountables->data;
         mount_op = gtk_mount_operation_new (parameters->parent_window);
-        g_mount_operation_set_password_save (mount_op, G_PASSWORD_SAVE_FOR_SESSION);
         g_signal_connect (mount_op, "notify::is-showing",
                           G_CALLBACK (activate_mount_op_active), parameters);
         nautilus_file_mount (file,

@@ -1846,7 +1846,6 @@ handle_mount_if_needed (NautilusWindowSlot *self,
         self->tried_mount = TRUE;
 
         mount_op = gtk_mount_operation_new (GTK_WINDOW (gtk_widget_get_root (GTK_WIDGET (self))));
-        g_mount_operation_set_password_save (mount_op, G_PASSWORD_SAVE_FOR_SESSION);
         location = nautilus_file_get_location (file);
         if (self->mount_cancellable != NULL)
         {

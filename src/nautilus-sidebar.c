@@ -1814,7 +1814,6 @@ mount_volume (NautilusSidebarRow *row,
     g_object_get (row, "sidebar", &sidebar, NULL);
 
     mount_op = get_mount_operation (sidebar);
-    g_mount_operation_set_password_save (mount_op, G_PASSWORD_SAVE_FOR_SESSION);
 
     g_object_ref (sidebar);
     callback_data = g_new0 (VolumeMountCallbackData, 1);

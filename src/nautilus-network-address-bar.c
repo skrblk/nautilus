@@ -181,8 +181,6 @@ mount_server (NautilusNetworkAddressBar *self,
         self->entry_pulse_timeout_id = g_timeout_add (100, (GSourceFunc) pulse_entry_cb, self);
     }
 
-    g_mount_operation_set_password_save (operation, G_PASSWORD_SAVE_FOR_SESSION);
-
     /* make sure we keep the view around for as long as we are running */
     g_file_mount_enclosing_volume (location,
                                    0,
