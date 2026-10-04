@@ -15,6 +15,6 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (NautilusGridViewCaptionsDialog, nautilus_grid_view_captions_dialog, NAUTILUS, GRID_VIEW_CAPTIONS_DIALOG, AdwDialog)
 
 void
-nautilus_grid_view_captions_dialog_present (GtkWidget *parent);
+nautilus_grid_view_captions_dialog_present (void);
 
 G_END_DECLS

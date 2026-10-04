@@ -223,7 +223,9 @@ show_date_range_dialog_cb (NautilusSearchPopover *self)
     GtkWindow *window = GTK_WINDOW (gtk_widget_get_root (GTK_WIDGET (self)));
 
     NautilusDateRangeDialog *dialog = nautilus_date_range_dialog_new (self->specific_date_range);
-    adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (window));
+    g_signal_connect_object (window, "unrealize",
+                             G_CALLBACK (adw_dialog_force_close), dialog, G_CONNECT_SWAPPED);
+    adw_dialog_present (ADW_DIALOG (dialog), NULL);
 
     g_signal_connect_object (dialog, "date-range",
                              G_CALLBACK (date_range_dialog_selected_cb),
@@ -404,6 +406,11 @@ show_other_types_dialog (NautilusSearchPopover *popover)
     GtkRoot *toplevel = gtk_widget_get_root (GTK_WIDGET (popover));
 
     gtk_popover_popdown (GTK_POPOVER (popover));
+    if (popover->type_dialog != NULL)
+    {
+        adw_dialog_present (popover->type_dialog, NULL);
+        return;
+    }
 
     mime_infos = g_content_types_get_registered ();
     mime_infos = g_list_sort (mime_infos, (GCompareFunc) g_strcmp0);
@@ -425,11 +432,13 @@ show_other_types_dialog (NautilusSearchPopover *popover)
                                                                  G_CALLBACK (join_type_and_description),
                                                                  NULL, NULL));
     filter_model = gtk_filter_list_model_new (G_LIST_MODEL (file_type_list), GTK_FILTER (filter));
+    g_clear_object (&popover->other_types_model);
     popover->other_types_model = gtk_single_selection_new (G_LIST_MODEL (filter_model));
 
     builder = gtk_builder_new_from_resource ("/org/gnome/nautilus/ui/nautilus-search-types-dialog.ui");
 
     popover->type_dialog = ADW_DIALOG (gtk_builder_get_object (builder, "file_types_dialog"));
+    g_object_add_weak_pointer (G_OBJECT (popover->type_dialog), (gpointer *) &popover->type_dialog);
     search_entry = GTK_WIDGET (gtk_builder_get_object (builder, "search_entry"));
     toolbar_view = ADW_TOOLBAR_VIEW (gtk_builder_get_object (builder, "toolbar_view"));
     popover->type_dialog_stack = GTK_STACK (gtk_builder_get_object (builder, "search_stack"));
@@ -438,8 +447,8 @@ show_other_types_dialog (NautilusSearchPopover *popover)
     content_area = adw_toolbar_view_get_content (toolbar_view);
     gtk_search_entry_set_key_capture_widget (GTK_SEARCH_ENTRY (search_entry), content_area);
     g_object_bind_property (search_entry, "text", filter, "search", G_BINDING_SYNC_CREATE);
-    g_signal_connect_after (search_entry, "notify::text",
-                            G_CALLBACK (file_type_search_changed), popover);
+    g_signal_connect_object (search_entry, "notify::text",
+                             G_CALLBACK (file_type_search_changed), popover, G_CONNECT_AFTER);
 
     gtk_list_view_set_model (listview,
                              GTK_SELECTION_MODEL (g_object_ref (popover->other_types_model)));
@@ -447,14 +456,14 @@ show_other_types_dialog (NautilusSearchPopover *popover)
                                   listview, "single-click-activate", G_SETTINGS_BIND_GET,
                                   click_policy_mapping_get, NULL, listview, NULL);
 
-    g_signal_connect_swapped (adw_dialog_get_default_widget (popover->type_dialog), "clicked",
-                              G_CALLBACK (on_other_types_dialog_response), popover);
-    g_signal_connect_swapped (popover->type_dialog, "close-attempt",
-                              G_CALLBACK (on_other_types_dialog_response), popover);
-    g_signal_connect_swapped (listview, "activate",
-                              G_CALLBACK (on_other_types_dialog_response), popover);
+    g_signal_connect_object (adw_dialog_get_default_widget (popover->type_dialog), "clicked",
+                              G_CALLBACK (on_other_types_dialog_response), popover, G_CONNECT_SWAPPED);
+    g_signal_connect_object (popover->type_dialog, "close-attempt",
+                              G_CALLBACK (on_other_types_dialog_response), popover, G_CONNECT_SWAPPED);
+    g_signal_connect_object (listview, "activate",
+                              G_CALLBACK (on_other_types_dialog_response), popover, G_CONNECT_SWAPPED);
 
-    adw_dialog_present (popover->type_dialog, GTK_WIDGET (toplevel));
+    adw_dialog_present (popover->type_dialog, NULL);
 }
 
 void
@@ -469,6 +478,13 @@ static void
 nautilus_search_popover_dispose (GObject *obj)
 {
     NautilusSearchPopover *self = NAUTILUS_SEARCH_POPOVER (obj);
+
+    if (self->type_dialog != NULL)
+    {
+        adw_dialog_force_close (self->type_dialog);
+        g_clear_weak_pointer (&self->type_dialog);
+    }
+    g_clear_object (&self->other_types_model);
 
     g_free (self->specific_mimetype);
     g_clear_pointer (&self->specific_date_range, g_ptr_array_unref);

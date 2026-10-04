@@ -218,10 +218,10 @@ nautilus_grid_view_captions_dialog_init (NautilusGridViewCaptionsDialog *self)
 }
 
 void
-nautilus_grid_view_captions_dialog_present (GtkWidget *parent)
+nautilus_grid_view_captions_dialog_present (void)
 {
     NautilusGridViewCaptionsDialog *self = g_object_new (NAUTILUS_TYPE_GRID_VIEW_CAPTIONS_DIALOG,
                                                          NULL);
 
-    adw_dialog_present (ADW_DIALOG (self), parent);
+    adw_dialog_present (ADW_DIALOG (self), NULL);
 }

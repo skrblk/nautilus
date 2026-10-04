@@ -13,11 +13,6 @@
 
 #include <gtk/gtk.h>
 
-void
-nautilus_properties_present_dialog (NautilusFileList *files,
-                                    GtkWidget        *parent_widget,
-                                    GFile            *current_view_location);
-
 GtkWindow *
 nautilus_properties_present_window (NautilusFileList *files,
                                     const char       *startup_id);

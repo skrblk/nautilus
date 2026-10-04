@@ -14,6 +14,6 @@
 
 G_BEGIN_DECLS
 
-void nautilus_preferences_dialog_show (GtkWidget *widget);
+void nautilus_preferences_dialog_show (void);
 
 G_END_DECLS

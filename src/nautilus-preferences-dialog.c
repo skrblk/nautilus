@@ -200,7 +200,7 @@ nautilus_preferences_dialog_setup (GtkBuilder *builder)
 }
 
 void
-nautilus_preferences_dialog_show (GtkWidget *parent)
+nautilus_preferences_dialog_show (void)
 {
     static AdwPreferencesDialog *preferences_dialog = NULL;
     g_autoptr (GtkBuilder) builder = NULL;
@@ -228,5 +228,5 @@ nautilus_preferences_dialog_show (GtkWidget *parent)
                                     "preferences",
                                     G_ACTION_GROUP (action_group));
 
-    adw_dialog_present (ADW_DIALOG (preferences_dialog), parent);
+    adw_dialog_present (ADW_DIALOG (preferences_dialog), NULL);
 }

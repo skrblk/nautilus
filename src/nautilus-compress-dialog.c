@@ -313,7 +313,9 @@ on_name_accepted (NautilusCompressDialog *self)
     g_autofree char *name = nautilus_filename_validator_get_new_name (self->validator);
     const char *passphrase = gtk_editable_get_text (GTK_EDITABLE (self->passphrase_entry));
 
-    self->callback (name, passphrase, self->callback_data);
+    NautilusCompressItem *item = adw_combo_row_get_selected_item (self->extension_combo_row);
+
+    self->callback (name, passphrase, item->format, self->callback_data);
 
     adw_dialog_close (ADW_DIALOG (self));
 }
@@ -386,7 +388,9 @@ nautilus_compress_dialog_new (GtkWindow         *parent_window,
         gtk_editable_set_text (GTK_EDITABLE (self->name_entry), initial_name);
     }
 
-    adw_dialog_present (ADW_DIALOG (self), GTK_WIDGET (parent_window));
+    g_signal_connect_object (parent_window, "unrealize",
+                             G_CALLBACK (adw_dialog_force_close), self, G_CONNECT_SWAPPED);
+    adw_dialog_present (ADW_DIALOG (self), NULL);
 
     return self;
 }

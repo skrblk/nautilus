@@ -7,14 +7,16 @@
 #pragma once
 
 #include "nautilus-types.h"
+#include "nautilus-global-preferences.h"
 
 #include <glib.h>
 #include <gtk/gtk.h>
 #include <adwaita.h>
 
-typedef void (*CompressCallback) (const char *new_name,
-                                  const char *passphrase,
-                                  gpointer    user_data);
+typedef void (*CompressCallback) (const char                *new_name,
+                                  const char                *passphrase,
+                                  NautilusCompressionFormat  format,
+                                  gpointer                   user_data);
 
 #define NAUTILUS_TYPE_COMPRESS_DIALOG nautilus_compress_dialog_get_type ()
 G_DECLARE_FINAL_TYPE (NautilusCompressDialog, nautilus_compress_dialog, NAUTILUS, COMPRESS_DIALOG, AdwDialog)

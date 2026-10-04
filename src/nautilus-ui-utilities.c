@@ -332,7 +332,7 @@ show_ok_dialog_idle (gpointer user_data)
 
     if (gtk_widget_get_mapped (parent))
     {
-        adw_dialog_present (dialog, parent);
+        adw_dialog_present (dialog, NULL);
     }
 }
 
@@ -355,7 +355,7 @@ nautilus_show_ok_dialog (const char *heading,
 
     if (g_main_context_is_owner (g_main_context_default ()))
     {
-        adw_dialog_present (ADW_DIALOG (dialog), parent);
+        adw_dialog_present (ADW_DIALOG (dialog), NULL);
     }
     else
     {

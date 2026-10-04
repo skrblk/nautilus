@@ -17,7 +17,6 @@ struct _NautilusNewFolderDialog
 
     GtkWidget *name_entry;
 
-    gboolean with_selection;
     NewFolderCallback callback;
     gpointer callback_data;
 };
@@ -42,7 +41,7 @@ on_name_accepted (NautilusNewFolderDialog *self)
 {
     g_autofree char *name = nautilus_filename_validator_get_new_name (self->validator);
 
-    self->callback (name, self->with_selection, self->callback_data);
+    self->callback (name, self->callback_data);
 
     adw_dialog_close (ADW_DIALOG (self));
 }
@@ -50,7 +49,6 @@ on_name_accepted (NautilusNewFolderDialog *self)
 NautilusNewFolderDialog *
 nautilus_new_folder_dialog_new (GtkWidget         *parent,
                                 NautilusDirectory *destination_directory,
-                                gboolean           with_selection,
                                 gchar             *initial_name,
                                 NewFolderCallback  callback,
                                 gpointer           callback_data)
@@ -61,8 +59,6 @@ nautilus_new_folder_dialog_new (GtkWidget         *parent,
     nautilus_filename_validator_set_containing_directory (self->validator,
                                                           destination_directory);
 
-    self->with_selection = with_selection;
-
     self->callback = callback;
     self->callback_data = callback_data;
 
@@ -71,7 +67,9 @@ nautilus_new_folder_dialog_new (GtkWidget         *parent,
         gtk_editable_set_text (GTK_EDITABLE (self->name_entry), initial_name);
     }
 
-    adw_dialog_present (ADW_DIALOG (self), parent);
+    g_signal_connect_object (parent, "unrealize",
+                             G_CALLBACK (adw_dialog_force_close), self, G_CONNECT_SWAPPED);
+    adw_dialog_present (ADW_DIALOG (self), NULL);
 
     return self;
 }

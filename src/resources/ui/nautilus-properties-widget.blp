@@ -14,15 +14,7 @@ template $NautilusPropertiesWidget: Adw.Bin {
 
         child: Adw.ToolbarView {
           [top]
-          Adw.HeaderBar {
-            [end]
-            Button {
-              visible: bind popout_button.visible;
-              icon-name: "external-link-symbolic";
-              clicked => $popout_window_clicked(template);
-              tooltip-text: bind popout_button.tooltip-text;
-            }
-          }
+          Adw.HeaderBar {}
 
           content: Adw.StatusPage {
             child: Adw.Spinner {
@@ -51,14 +43,6 @@ template $NautilusPropertiesWidget: Adw.Bin {
               styles [
                 "star",
               ]
-            }
-
-            [end]
-            Button popout_button {
-              visible: false;
-              icon-name: "external-link-symbolic";
-              tooltip-text: _("Detach Window");
-              clicked => $popout_window_clicked(template);
             }
           }
 

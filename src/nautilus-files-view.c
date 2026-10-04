@@ -1501,7 +1501,7 @@ choose_program (NautilusFilesView *view,
                             files,
                             (GDestroyNotify) nautilus_file_list_free);
 
-    adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (view));
+    adw_dialog_present (ADW_DIALOG (dialog), NULL);
 
     g_signal_connect_object (dialog, "app-chosen",
                              G_CALLBACK (app_chosen),
@@ -1792,7 +1792,11 @@ select_pattern (NautilusFilesView *view)
                               G_CALLBACK (pattern_select_response_select),
                               dialog);
 
-    adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (view));
+    g_signal_connect_object (view, "unrealize",
+                             G_CALLBACK (adw_dialog_force_close), dialog, G_CONNECT_SWAPPED);
+    g_signal_connect_object (view, "notify::location",
+                             G_CALLBACK (adw_dialog_force_close), dialog, G_CONNECT_SWAPPED);
+    adw_dialog_present (ADW_DIALOG (dialog), NULL);
 }
 
 static void
@@ -1810,6 +1814,7 @@ typedef struct
     NautilusFilesView *directory_view;
     GHashTable *added_locations;
     NautilusFileList *selection;
+    char *parent_uri;
 } NewFolderData;
 
 static void
@@ -1818,6 +1823,7 @@ clear_new_folder_data (NewFolderData *data)
     g_hash_table_destroy (data->added_locations);
     g_clear_weak_pointer (&data->directory_view);
     nautilus_file_list_free (data->selection);
+    g_free (data->parent_uri);
     g_free (data);
 }
 
@@ -1900,6 +1906,12 @@ new_folder_done (GFile    *new_folder,
         g_free (target_uri);
     }
 
+    g_autofree char *current_uri = nautilus_files_view_get_backing_uri (directory_view);
+    if (data->parent_uri != NULL && g_strcmp0 (current_uri, data->parent_uri) != 0)
+    {
+        return;
+    }
+
     if (g_hash_table_contains (data->added_locations, new_folder))
     {
         /* The file was already added */
@@ -1916,12 +1928,14 @@ new_folder_done (GFile    *new_folder,
 
 static NewFolderData *
 new_folder_data_new (NautilusFilesView *directory_view,
-                     gboolean           with_selection)
+                     gboolean           with_selection,
+                     const char        *parent_uri)
 {
     NewFolderData *data;
 
     data = g_new (NewFolderData, 1);
     data->directory_view = directory_view;
+    data->parent_uri = g_strdup (parent_uri);
     data->added_locations = g_hash_table_new_full (g_file_hash, (GEqualFunc) g_file_equal,
                                                    g_object_unref, NULL);
     if (with_selection)
@@ -2004,17 +2018,24 @@ nautilus_files_view_rename_file_popover_new (NautilusFilesView *view,
 
 static void
 create_new_folder_callback (const char *folder_name,
-                            gboolean    with_selection,
                             gpointer    user_data)
 {
-    NautilusFilesView *view;
+    NewFolderData *callback_data = user_data;
+    NautilusFilesView *view = callback_data->directory_view;
     NewFolderData *data;
-    g_autofree gchar *parent_uri = NULL;
-    NautilusFile *parent;
 
-    view = NAUTILUS_FILES_VIEW (user_data);
+    if (view == NULL)
+    {
+        return;
+    }
 
-    data = new_folder_data_new (view, with_selection);
+    data = new_folder_data_new (view, FALSE, callback_data->parent_uri);
+    data->selection = nautilus_file_list_copy (callback_data->selection);
+    g_autofree char *current_uri = nautilus_files_view_get_backing_uri (view);
+    if (g_strcmp0 (current_uri, data->parent_uri) == 0)
+    {
+        view->selection_source = NAUTILUS_SELECTION_SOURCE_OP_START;
+    }
 
     g_signal_connect_data (view,
                            "add-files",
@@ -2023,20 +2044,10 @@ create_new_folder_callback (const char *folder_name,
                            (GClosureNotify) NULL,
                            G_CONNECT_AFTER);
 
-    parent_uri = nautilus_files_view_get_backing_uri (view);
-    parent = nautilus_file_get_by_uri (parent_uri);
     nautilus_file_operations_new_folder (GTK_WIDGET (view),
                                          NULL,
-                                         parent_uri, folder_name,
+                                         data->parent_uri, folder_name,
                                          new_folder_done, data);
-
-    /* After the dialog is destroyed the focus, is probably in the menu item
-     * that created the dialog, but we want the focus to be in the newly created
-     * folder.
-     */
-    gtk_widget_grab_focus (GTK_WIDGET (view));
-
-    g_object_unref (parent);
 }
 
 static void
@@ -2049,8 +2060,6 @@ nautilus_files_view_new_folder_dialog_new (NautilusFilesView *view,
 
     uri = nautilus_files_view_get_backing_uri (view);
     containing_directory = nautilus_directory_get_by_uri (uri);
-    view->selection_source = NAUTILUS_SELECTION_SOURCE_OP_START;
-
     if (with_selection)
     {
         g_autolist (NautilusFile) selection = NULL;
@@ -2058,12 +2067,15 @@ nautilus_files_view_new_folder_dialog_new (NautilusFilesView *view,
         common_prefix = nautilus_get_common_filename_prefix (selection, MIN_COMMON_FILENAME_PREFIX_LENGTH);
     }
 
-    (void) nautilus_new_folder_dialog_new (GTK_WIDGET (view),
-                                           containing_directory,
-                                           with_selection,
-                                           common_prefix,
-                                           create_new_folder_callback,
-                                           view);
+    /* Browsing while the prompt is open must not change its targets. */
+    NewFolderData *data = new_folder_data_new (view, with_selection, uri);
+    NautilusNewFolderDialog *dialog = nautilus_new_folder_dialog_new (GTK_WIDGET (view),
+                                                                     containing_directory,
+                                                                     common_prefix,
+                                                                     create_new_folder_callback,
+                                                                     data);
+    g_object_set_data_full (G_OBJECT (dialog), "new-folder-data", data,
+                            (GDestroyNotify) clear_new_folder_data);
 }
 
 typedef struct
@@ -2108,6 +2120,12 @@ compress_done (GFile    *new_file,
         return;
     }
 
+    g_autoptr (GFile) parent = g_file_get_parent (new_file);
+    if (!location_in_view (view, parent))
+    {
+        return;
+    }
+
     file = nautilus_file_get (new_file);
 
     if (g_hash_table_contains (data->added_locations, new_file))
@@ -2129,9 +2147,10 @@ compress_done (GFile    *new_file,
 }
 
 static void
-create_archive_callback (const char *archive_name,
-                         const char *passphrase,
-                         gpointer    user_data)
+create_archive_callback (const char                *archive_name,
+                         const char                *passphrase,
+                         NautilusCompressionFormat  compression_format,
+                         gpointer                   user_data)
 {
     CompressCallbackData *callback_data = user_data;
     NautilusFilesView *view;
@@ -2139,11 +2158,14 @@ create_archive_callback (const char *archive_name,
     CompressData *data;
     g_autoptr (GFile) output = NULL;
     g_autoptr (GFile) parent = NULL;
-    NautilusCompressionFormat compression_format;
     AutoarFormat format;
     AutoarFilter filter;
 
     view = callback_data->view;
+    if (view == NULL)
+    {
+        return;
+    }
 
     source_files = nautilus_location_list_from_file_list (callback_data->selection);
     /* Get a parent from a random file. We assume all files has a common parent.
@@ -2171,9 +2193,6 @@ create_archive_callback (const char *archive_name,
                            data->added_locations,
                            NULL,
                            G_CONNECT_AFTER);
-
-    compression_format = g_settings_get_enum (nautilus_compression_preferences,
-                                              NAUTILUS_PREFERENCES_DEFAULT_COMPRESSION_FORMAT);
 
     switch (compression_format)
     {
@@ -2225,13 +2244,14 @@ static void
 compress_callback_data_free (CompressCallbackData *data)
 {
     nautilus_file_list_free (data->selection);
+    g_clear_weak_pointer (&data->view);
     g_free (data);
 }
 
 static void
 nautilus_files_view_compress_dialog_new (NautilusFilesView *view)
 {
-    NautilusDirectory *containing_directory;
+    g_autoptr (NautilusDirectory) containing_directory = NULL;
     g_autolist (NautilusFile) selection = nautilus_files_view_get_selection_for_file_transfer (view);
     gboolean is_single_selection = list_len_is_one (selection);
     g_autofree char *common_prefix = NULL;
@@ -2263,6 +2283,7 @@ nautilus_files_view_compress_dialog_new (NautilusFilesView *view)
 
     data = g_new0 (CompressCallbackData, 1);
     data->view = view;
+    g_object_add_weak_pointer (G_OBJECT (view), (gpointer *) &data->view);
     data->selection = g_steal_pointer (&selection);
 
     compress_dialog = nautilus_compress_dialog_new (nautilus_files_view_get_containing_window (view),
@@ -2287,7 +2308,7 @@ setup_new_folder_data (NautilusFilesView *directory_view)
 {
     NewFolderData *data;
 
-    data = new_folder_data_new (directory_view, FALSE);
+    data = new_folder_data_new (directory_view, FALSE, NULL);
 
     g_signal_connect_data (directory_view,
                            "add-files",
@@ -2454,21 +2475,16 @@ action_properties (GSimpleAction *action,
     {
         if (self->directory_as_file != NULL)
         {
-            g_autoptr (GFile) location = nautilus_file_get_location (self->directory_as_file);
-
             files = g_list_append (NULL, nautilus_file_ref (self->directory_as_file));
 
-            nautilus_properties_present_dialog (files, GTK_WIDGET (self), location);
+            nautilus_properties_present_window (files, NULL);
 
             nautilus_file_list_free (files);
         }
     }
     else
     {
-        g_autoptr (GFile) location = self->directory_as_file != NULL
-                                     ? nautilus_file_get_location (self->directory_as_file)
-                                     : NULL;
-        nautilus_properties_present_dialog (selection, GTK_WIDGET (self), location);
+        nautilus_properties_present_window (selection, NULL);
     }
 }
 
@@ -2485,11 +2501,9 @@ action_current_dir_properties (GSimpleAction *action,
 
     if (self->directory_as_file != NULL)
     {
-        g_autoptr (GFile) location = nautilus_file_get_location (self->directory_as_file);
-
         files = g_list_append (NULL, nautilus_file_ref (self->directory_as_file));
 
-        nautilus_properties_present_dialog (files, GTK_WIDGET (self), location);
+        nautilus_properties_present_window (files, NULL);
 
         nautilus_file_list_free (files);
     }
@@ -2570,7 +2584,7 @@ action_visible_captions (GSimpleAction *action,
 
     g_return_if_fail (NAUTILUS_IS_GRID_VIEW (self->list_base));
 
-    nautilus_grid_view_captions_dialog_present (GTK_WIDGET (self));
+    nautilus_grid_view_captions_dialog_present ();
 }
 
 static void
@@ -6003,7 +6017,9 @@ real_action_rename (NautilusFilesView *view)
             dialog = nautilus_batch_rename_dialog_new (g_steal_pointer (&selection),
                                                        window);
 
-            adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (window));
+            g_signal_connect_object (window, "unrealize",
+                                     G_CALLBACK (adw_dialog_force_close), dialog, G_CONNECT_SWAPPED);
+            adw_dialog_present (ADW_DIALOG (dialog), NULL);
         }
         else
         {

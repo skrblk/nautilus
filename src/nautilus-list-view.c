@@ -402,9 +402,10 @@ create_column_editor (NautilusListView *view)
     file = nautilus_list_base_get_directory_as_file (NAUTILUS_LIST_BASE (view));
     column_chooser = nautilus_column_chooser_new (file);
 
-    g_signal_connect_swapped (column_chooser, "changed",
-                              G_CALLBACK (apply_columns_settings),
-                              view);
+    g_signal_connect_object (column_chooser, "changed",
+                             G_CALLBACK (apply_columns_settings), view, G_CONNECT_SWAPPED);
+    g_signal_connect_object (view, "unrealize",
+                             G_CALLBACK (adw_dialog_close), column_chooser, G_CONNECT_SWAPPED);
 
     return column_chooser;
 }
@@ -419,7 +420,7 @@ nautilus_list_view_present_column_editor (NautilusListView *self)
                                    (gpointer *) &self->column_editor);
     }
 
-    adw_dialog_present (ADW_DIALOG (self->column_editor), GTK_WIDGET (self));
+    adw_dialog_present (ADW_DIALOG (self->column_editor), NULL);
 }
 
 static void
@@ -568,6 +569,11 @@ nautilus_list_view_setup_directory (NautilusListBase  *list_base,
     NautilusListView *self = NAUTILUS_LIST_VIEW (list_base);
     NautilusViewModel *model;
     NautilusFile *file;
+
+    if (self->column_editor != NULL && gtk_widget_get_root (self->column_editor) != NULL)
+    {
+        adw_dialog_close (ADW_DIALOG (self->column_editor));
+    }
 
     NAUTILUS_LIST_BASE_CLASS (nautilus_list_view_parent_class)->setup_directory (list_base, new_directory);
 
